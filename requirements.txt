@@ -1,0 +1,8 @@
+torch
+transformers
+langchain
+faiss-cpu
+unstructured
+sentence_transformers
+accelerate
+einops
