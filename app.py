@@ -62,7 +62,7 @@ model_id = "microsoft/phi-2"
 
 tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
 model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float32, device_map="cpu", trust_remote_code=True)
-phi2 = pipeline("text-generation", tokenizer=tokenizer, model=model, max_new_tokens=128, device_map="auto") # GPU
+phi2 = pipeline("text-generation", tokenizer=tokenizer, model=model, max_new_tokens=64, device_map="auto") # GPU
 
 phi2.tokenizer.pad_token_id = phi2.model.config.eos_token_id
 hf_model = HuggingFacePipeline(pipeline=phi2)
@@ -121,7 +121,9 @@ def upload_file(qa_chain):
 with gr.Blocks() as demo:
   gr.Markdown("""
   # RAG-Phi-2 Chatbot demo
-  ### This chatbot uses the Phi-2 language model and retrieval augmented generation to allow you to add domain-specific knowledge by uploading a txt file.
+  ### This chatbot uses the Phi-2 language model and retrieval augmented generation to allow you to add domain-specific knowledge by uploading a txt file. 
+  ### Upload a txt file that contains the text data that you would like to augment the model with.
+  ### If you don't have one, there is a txt file already loaded, the new Oppenheimer movie's entire wikipedia page.
   """)
 
   file_output = gr.File(label="txt file")
@@ -131,11 +133,6 @@ with gr.Blocks() as demo:
       file_count="single"
   )
   upload_button.upload(upload_file(qa_chain), upload_button, file_output)
-
-  gr.Markdown("""
-  ### Upload a txt file that contains the text data that you would like to augment the model with.
-  If you don't have one, there is a default text data already loaded, the new Oppenheimer movie's wikipedia page.
-  """)
 
   chatbot = gr.Chatbot(label="RAG Phi-2 Chatbot")
   msg = gr.Textbox(label="Message", placeholder="Enter text here")
