@@ -37,7 +37,6 @@ def prepare_vector_store(filename):
   # Load data
   loader = UnstructuredFileLoader(filename)
   raw_documents = loader.load()
-  print(raw_documents[:1000])
 
   # Split the text
   text_splitter = CharacterTextSplitter(
@@ -48,12 +47,10 @@ def prepare_vector_store(filename):
   )
 
   documents = text_splitter.split_documents(raw_documents)
-  print(documents[:3])
 
   # Creating a vectorstore
   embeddings = HuggingFaceEmbeddings()
   vectorstore = FAISS.from_documents(documents, embeddings)
-  print(embeddings, vectorstore)
 
   return vectorstore
 
@@ -76,10 +73,8 @@ def get_retrieval_qa_chain(filename):
   model = RetrievalQA.from_chain_type(
       llm=llm,
       retriever=retriever,
-      chain_type_kwargs={"prompt": QA_PROMPT, "verbose": True},
-      verbose=True,
+      chain_type_kwargs={"prompt": QA_PROMPT},
   )
-  print(filename)
   return model
 
 # Question Answering Chain
@@ -111,7 +106,6 @@ def generate(question, chat_history):
 # replaces the retreiver in the question answering chain whenever a new file is uploaded
 def upload_file(qa_chain):
   def uploader(file):
-    print(file)
     qa_chain.retriever = VectorStoreRetriever(
       vectorstore=prepare_vector_store(file)
     )
@@ -121,9 +115,12 @@ def upload_file(qa_chain):
 with gr.Blocks() as demo:
   gr.Markdown("""
   # RAG-Phi-2 Chatbot demo
-  ### This chatbot uses the Phi-2 language model and retrieval augmented generation to allow you to add domain-specific knowledge by uploading a txt file. 
-  ### Upload a txt file that contains the text data that you would like to augment the model with.
-  ### If you don't have one, there is a txt file already loaded, the new Oppenheimer movie's entire wikipedia page.
+  ### This demo uses the Phi-2 language model and Retrieval Augmented Generation (RAG) to allow you to add custom knowledge to the chatbot by uploading a txt file. Upload a txt file that contains the text data that you would like to augment the chatbot with. 
+  ### If you don't have one, there is a txt file already loaded, the new Oppenheimer movie's entire wikipedia page. The movie came out very recently in July, 2023, so the Phi-2 model is not aware of it.
+
+  The context size of the Phi-2 model is 2048 tokens, so even this medium size wikipedia page (11.5k tokens) does not fit in the context window. 
+  Retrieval Augmented Generation (RAG) enables us to retrieve just the few small chunks of the document that are relevant to the our query and inject it into our prompt. 
+  The chatbot is then able to answer questions by incorporating knowledge from the newly provided document. RAG can be used with thousands of documents, but this demo is limited to just one txt file.
   """)
 
   file_output = gr.File(label="txt file")
@@ -139,5 +136,12 @@ with gr.Blocks() as demo:
 
   clear = gr.ClearButton([msg, chatbot])
   msg.submit(fn=generate, inputs=[msg, chatbot], outputs=[msg, chatbot])
+  examples = gr.Examples(
+        examples=[
+            "Who portrayed J. Robert Oppenheimer in the new Oppenheimer movie?",
+            "In the plot of the movie, why did Lewis Strauss resent Robert Oppenheimer?"
+        ],
+        inputs=[msg],
+    )
 
 demo.launch()
