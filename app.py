@@ -119,6 +119,14 @@ with gr.Blocks() as demo:
   The model is then able to answer questions by incorporating knowledge from the newly provided document. RAG can be used with thousands of documents, but this demo is limited to just one txt file.
   """)
 
+  file_output = gr.File()
+  upload_button = gr.UploadButton(
+      label="Click to upload a text file",
+      file_types=["text"],
+      file_count="single"
+  )
+  upload_button.upload(upload_file(qa_chain), upload_button, file_output)
+ 
   with gr.Row():
     with gr.Column():
       ques = gr.Textbox(label="Question", placeholder="Enter text here", lines=3)
