@@ -8,11 +8,13 @@ from langchain.embeddings import HuggingFaceEmbeddings
 from langchain.chains import RetrievalQA
 from langchain.prompts.prompt import PromptTemplate
 from langchain.vectorstores.base import VectorStoreRetriever
+
+import torch
+from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
 from langchain_community.llms.huggingface_pipeline import HuggingFacePipeline
 
-from transformers import AutoTokenizer, AutoModelForCausalLM, pipeline
-import torch
-from langchain_community.llms.huggingface_pipeline import HuggingFacePipeline
+from transformers import TextIteratorStreamer
+from threading import Thread
 
 # Prompt template
 template = """Instruction:
@@ -22,10 +24,8 @@ If you don't know the answer, just say "Hmm, I'm not sure." Don't try to make up
 =======
 {context}
 =======
-Chat History:
-
-{question}
-Output:"""
+Question: {question}
+Output:\n"""
 
 QA_PROMPT = PromptTemplate(
   template=template,
@@ -58,10 +58,18 @@ def prepare_vector_store(filename):
 model_id = "microsoft/phi-2"
 
 tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
-model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float32, device_map="cpu", trust_remote_code=True)
-phi2 = pipeline("text-generation", tokenizer=tokenizer, model=model, max_new_tokens=64, device_map="auto") # GPU
+model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float32, device_map="auto", trust_remote_code=True)
 
-phi2.tokenizer.pad_token_id = phi2.model.config.eos_token_id
+streamer = TextIteratorStreamer(tokenizer=tokenizer, skip_prompt=True)
+phi2 = pipeline(
+    "text-generation",
+    tokenizer=tokenizer,
+    model=model,
+    max_new_tokens=256,
+    eos_token_id=tokenizer.eos_token_id,
+    device_map="auto",
+    streamer=streamer
+  ) # GPU
 hf_model = HuggingFacePipeline(pipeline=phi2)
 
 # Retrieveal QA chian
@@ -81,27 +89,16 @@ def get_retrieval_qa_chain(filename):
 qa_chain = get_retrieval_qa_chain(filename="Oppenheimer-movie-wiki.txt")
 
 # Generates response using the question answering chain defined earlier
-def generate(question, chat_history):
-  query = ""
-  for req, res in chat_history:
-    query += f"User: {req}\n"
-    query += f"Assistant: {res}\n"
-  query += f"User: {question}"
+def generate(question, answer):
+  query = f"{question}"
 
-  result = qa_chain.invoke({"query": query})
-  response = result["result"].strip()
-  response = response.split("\n\n")[0].strip()
+  thread = Thread(target=qa_chain.invoke, kwargs={"input": {"query": query}})
+  thread.start()
 
-  if "User:" in response:
-    response = response.split("User:")[0].strip()
-  if "INPUT:" in response:
-    response = response.split("INPUT:")[0].strip()
-  if "Assistant:" in response:
-    response = response.split("Assistant:")[1].strip()
-
-  chat_history.append((question, response))
-
-  return "", chat_history
+  response = ""
+  for token in streamer:
+    response += token
+    yield response
 
 # replaces the retreiver in the question answering chain whenever a new file is uploaded
 def upload_file(qa_chain):
@@ -114,34 +111,31 @@ def upload_file(qa_chain):
 
 with gr.Blocks() as demo:
   gr.Markdown("""
-  # RAG-Phi-2 Chatbot demo
-  ### This demo uses the Phi-2 language model and Retrieval Augmented Generation (RAG) to allow you to add custom knowledge to the chatbot by uploading a txt file. Upload a txt file that contains the text data that you would like to augment the chatbot with. 
+  # RAG-Phi-2 Question Answering demo
+  ### This demo uses the Phi-2 language model and Retrieval Augmented Generation (RAG) to allow you to upload a txt file and ask the model questions related to the content of that file.
   ### If you don't have one, there is a txt file already loaded, the new Oppenheimer movie's entire wikipedia page. The movie came out very recently in July, 2023, so the Phi-2 model is not aware of it.
-
-  The context size of the Phi-2 model is 2048 tokens, so even this medium size wikipedia page (11.5k tokens) does not fit in the context window. 
-  Retrieval Augmented Generation (RAG) enables us to retrieve just the few small chunks of the document that are relevant to the our query and inject it into our prompt. 
-  The chatbot is then able to answer questions by incorporating knowledge from the newly provided document. RAG can be used with thousands of documents, but this demo is limited to just one txt file.
+  The context size of the Phi-2 model is 2048 tokens, so even this medium size wikipedia page (11.5k tokens) does not fit in the context window.
+  Retrieval Augmented Generation (RAG) enables us to retrieve just the few small chunks of the document that are relevant to the our query and inject it into our prompt.
+  The model is then able to answer questions by incorporating knowledge from the newly provided document. RAG can be used with thousands of documents, but this demo is limited to just one txt file.
   """)
 
-  file_output = gr.File(label="txt file")
-  upload_button = gr.UploadButton(
-      label="Click to upload a txt file",
-      file_types=["text"],
-      file_count="single"
-  )
-  upload_button.upload(upload_file(qa_chain), upload_button, file_output)
-
-  chatbot = gr.Chatbot(label="RAG Phi-2 Chatbot")
-  msg = gr.Textbox(label="Message", placeholder="Enter text here")
-
-  clear = gr.ClearButton([msg, chatbot])
-  msg.submit(fn=generate, inputs=[msg, chatbot], outputs=[msg, chatbot])
+  with gr.Row():
+    with gr.Column():
+      ques = gr.Textbox(label="Question", placeholder="Enter text here", lines=3)
+    with gr.Column():
+      ans = gr.Textbox(label="Answer", lines=4)
+  with gr.Row():
+    with gr.Column():
+      btn = gr.Button("Submit")
+    with gr.Column():
+      clear = gr.ClearButton([ques, ans])
+  btn.click(fn=generate, inputs=[ques, ans], outputs=[ans])
   examples = gr.Examples(
         examples=[
             "Who portrayed J. Robert Oppenheimer in the new Oppenheimer movie?",
             "In the plot of the movie, why did Lewis Strauss resent Robert Oppenheimer?"
         ],
-        inputs=[msg],
+        inputs=[ques],
     )
 
-demo.launch()
+demo.queue().launch()
