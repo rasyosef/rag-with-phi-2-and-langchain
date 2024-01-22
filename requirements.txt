@@ -1,6 +1,7 @@
 torch
 transformers
 langchain
+langchain-community
 faiss-cpu
 unstructured
 sentence_transformers
