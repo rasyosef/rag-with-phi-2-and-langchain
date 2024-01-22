@@ -1,9 +1,9 @@
 import gradio as gr
 
 from langchain.text_splitter import CharacterTextSplitter
-from langchain.document_loaders import UnstructuredFileLoader
+from langchain_community.document_loaders import UnstructuredFileLoader
 from langchain.vectorstores.faiss import FAISS
-from langchain.embeddings import HuggingFaceEmbeddings
+from langchain_community.embeddings import HuggingFaceEmbeddings
 
 from langchain.chains import RetrievalQA
 from langchain.prompts.prompt import PromptTemplate
@@ -74,7 +74,11 @@ def prepare_vector_store(filename):
   return vectorstore
 
 # Retrieveal QA chian
-def get_retrieval_qa_chain(retriever):
+def get_retrieval_qa_chain(text_file):
+  retriever = VectorStoreRetriever(
+    vectorstore=prepare_vector_store(text_file)
+  )
+
   chain = RetrievalQA.from_chain_type(
       llm=hf_model,
       retriever=retriever,
@@ -98,10 +102,7 @@ def generate(question, answer, retriever):
 
 # replaces the retreiver in the question answering chain whenever a new file is uploaded
 def upload_file(file):
-  new_retriever = VectorStoreRetriever(
-      vectorstore=prepare_vector_store(file)
-    )
-  return file, new_retriever
+  return file, file
 
 with gr.Blocks() as demo:
   gr.Markdown("""
@@ -114,11 +115,7 @@ with gr.Blocks() as demo:
   """)
 
   default_text_file = "Oppenheimer-movie-wiki.txt"
-  retriever = gr.State(
-      VectorStoreRetriever(
-          vectorstore=prepare_vector_store(default_text_file)
-      )
-  )
+  text_file = gr.State(default_text_file)
 
   gr.Markdown("## Upload a txt file or Use the Default 'Oppenheimer-movie-wiki.txt' that has already been loaded")
 
@@ -128,7 +125,7 @@ with gr.Blocks() as demo:
       file_types=["text"],
       file_count="single"
   )
-  upload_button.upload(upload_file, upload_button, [file_name, retriever])
+  upload_button.upload(upload_file, upload_button, [file_name, text_file])
 
   gr.Markdown("## Enter your question")
 
@@ -143,7 +140,7 @@ with gr.Blocks() as demo:
     with gr.Column():
       clear = gr.ClearButton([ques, ans])
 
-  btn.click(fn=generate, inputs=[ques, ans, retriever], outputs=[ans])
+  btn.click(fn=generate, inputs=[ques, ans, text_file], outputs=[ans])
   examples = gr.Examples(
         examples=[
             "Who portrayed J. Robert Oppenheimer in the new Oppenheimer movie?",
