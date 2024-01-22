@@ -51,8 +51,8 @@ phi2 = pipeline(
   ) # GPU
 hf_model = HuggingFacePipeline(pipeline=phi2)
 
-# Returns a faiss vector store given a txt file
-def prepare_vector_store(filename):
+# Returns a faiss vector store retriever given a txt file
+def prepare_vector_store_retriever(filename):
   # Load data
   loader = UnstructuredFileLoader(filename)
   raw_documents = loader.load()
@@ -71,13 +71,13 @@ def prepare_vector_store(filename):
   embeddings = HuggingFaceEmbeddings()
   vectorstore = FAISS.from_documents(documents, embeddings)
 
-  return vectorstore
+  return VectorStoreRetriever(vectorstore=vectorstore)
 
 # Retrieveal QA chian
 def get_retrieval_qa_chain(text_file):
-  retriever = VectorStoreRetriever(
-    vectorstore=prepare_vector_store(text_file)
-  )
+  retriever = default_retriever
+  if text_file != default_text_file:
+    retriever = prepare_vector_store_retriever(text_file)
 
   chain = RetrievalQA.from_chain_type(
       llm=hf_model,
@@ -115,6 +115,8 @@ with gr.Blocks() as demo:
   """)
 
   default_text_file = "Oppenheimer-movie-wiki.txt"
+  default_retriever = prepare_vector_store_retriever(default_text_file)
+  
   text_file = gr.State(default_text_file)
 
   gr.Markdown("## Upload a txt file or Use the Default 'Oppenheimer-movie-wiki.txt' that has already been loaded")
