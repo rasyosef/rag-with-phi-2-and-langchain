@@ -60,8 +60,8 @@ def prepare_vector_store_retriever(filename):
   # Split the text
   text_splitter = CharacterTextSplitter(
       separator="\n\n",
-      chunk_size=400,
-      chunk_overlap=100,
+      chunk_size=800,
+      chunk_overlap=0,
       length_function=len
   )
 
@@ -71,7 +71,7 @@ def prepare_vector_store_retriever(filename):
   embeddings = HuggingFaceEmbeddings()
   vectorstore = FAISS.from_documents(documents, embeddings)
 
-  return VectorStoreRetriever(vectorstore=vectorstore)
+  return VectorStoreRetriever(vectorstore=vectorstore, search_kwargs={"k": 2})
 
 # Retrieveal QA chian
 def get_retrieval_qa_chain(text_file):
