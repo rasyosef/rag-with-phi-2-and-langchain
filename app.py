@@ -36,20 +36,7 @@ QA_PROMPT = PromptTemplate(
 model_id = "microsoft/phi-2"
 
 tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
-model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float32, device_map="auto", trust_remote_code=True)
-
-streamer = TextIteratorStreamer(tokenizer=tokenizer, skip_prompt=True)
-phi2 = pipeline(
-    "text-generation",
-    tokenizer=tokenizer,
-    model=model,
-    max_new_tokens=128,
-    pad_token_id=tokenizer.eos_token_id,
-    eos_token_id=tokenizer.eos_token_id,
-    device_map="auto",
-    streamer=streamer
-  ) # GPU
-hf_model = HuggingFacePipeline(pipeline=phi2)
+model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float32, device_map="cpu", trust_remote_code=True)
 
 # Returns a faiss vector store retriever given a txt file
 def prepare_vector_store_retriever(filename):
@@ -74,7 +61,7 @@ def prepare_vector_store_retriever(filename):
   return VectorStoreRetriever(vectorstore=vectorstore, search_kwargs={"k": 2})
 
 # Retrieveal QA chian
-def get_retrieval_qa_chain(text_file):
+def get_retrieval_qa_chain(text_file, hf_model):
   retriever = default_retriever
   if text_file != default_text_file:
     retriever = prepare_vector_store_retriever(text_file)
@@ -87,8 +74,15 @@ def get_retrieval_qa_chain(text_file):
   return chain
 
 # Generates response using the question answering chain defined earlier
-def generate(question, answer, retriever):
-  qa_chain = get_retrieval_qa_chain(retriever)
+def generate(question, answer, text_file, max_new_tokens):
+  streamer = TextIteratorStreamer(tokenizer=tokenizer, skip_prompt=True)
+  phi2_pipeline = pipeline(
+      "text-generation", tokenizer=tokenizer, model=model, max_new_tokens=max_new_tokens, 
+      pad_token_id=tokenizer.eos_token_id, eos_token_id=tokenizer.eos_token_id,
+      device_map="cpu", streamer=streamer
+    )
+  hf_model = HuggingFacePipeline(pipeline=phi2_pipeline)
+  qa_chain = get_retrieval_qa_chain(text_file, hf_model)
 
   query = f"{question}"
 
@@ -130,7 +124,8 @@ with gr.Blocks() as demo:
   upload_button.upload(upload_file, upload_button, [file_name, text_file])
 
   gr.Markdown("## Enter your question")
-
+  tokens_slider = gr.Slider(8, 256, value=64, label="Maximum new tokens", info="A larger `max_new_tokens` parameter value gives you longer text responses but at the cost of a slower response time.")
+  
   with gr.Row():
     with gr.Column():
       ques = gr.Textbox(label="Question", placeholder="Enter text here", lines=3)
@@ -142,7 +137,7 @@ with gr.Blocks() as demo:
     with gr.Column():
       clear = gr.ClearButton([ques, ans])
 
-  btn.click(fn=generate, inputs=[ques, ans, text_file], outputs=[ans])
+  btn.click(fn=generate, inputs=[ques, ans, text_file, tokens_slider], outputs=[ans])
   examples = gr.Examples(
         examples=[
             "Who portrayed J. Robert Oppenheimer in the new Oppenheimer movie?",
