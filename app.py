@@ -36,7 +36,7 @@ QA_PROMPT = PromptTemplate(
 model_id = "microsoft/phi-2"
 
 tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
-model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float32, device_map="cpu", trust_remote_code=True)
+model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float32, device_map="auto", trust_remote_code=True)
 
 # Returns a faiss vector store retriever given a txt file
 def prepare_vector_store_retriever(filename):
@@ -79,7 +79,7 @@ def generate(question, answer, text_file, max_new_tokens):
   phi2_pipeline = pipeline(
       "text-generation", tokenizer=tokenizer, model=model, max_new_tokens=max_new_tokens, 
       pad_token_id=tokenizer.eos_token_id, eos_token_id=tokenizer.eos_token_id,
-      device_map="cpu", streamer=streamer
+      device_map="auto", streamer=streamer
     )
 
   hf_model = HuggingFacePipeline(pipeline=phi2_pipeline)
