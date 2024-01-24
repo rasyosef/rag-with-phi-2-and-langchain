@@ -3,6 +3,7 @@ import gradio as gr
 from langchain.text_splitter import CharacterTextSplitter
 from langchain_community.document_loaders import UnstructuredFileLoader
 from langchain.vectorstores.faiss import FAISS
+from langchain.vectorstores.utils import DistanceStrategy
 from langchain_community.embeddings import HuggingFaceEmbeddings
 
 from langchain.chains import RetrievalQA
@@ -55,8 +56,12 @@ def prepare_vector_store_retriever(filename):
   documents = text_splitter.split_documents(raw_documents)
 
   # Creating a vectorstore
-  embeddings = HuggingFaceEmbeddings()
-  vectorstore = FAISS.from_documents(documents, embeddings)
+  embeddings = HuggingFaceEmbeddings(
+      model_name="sentence-transformers/multi-qa-MiniLM-L6-cos-v1",
+      model_kwargs={'device': 'cpu'},
+      encode_kwargs={'normalize_embeddings': False}
+  )
+  vectorstore = FAISS.from_documents(documents, embeddings, distance_strategy=DistanceStrategy.COSINE)
 
   return VectorStoreRetriever(vectorstore=vectorstore, search_kwargs={"k": 2})
 
