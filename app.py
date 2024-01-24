@@ -81,6 +81,7 @@ def generate(question, answer, text_file, max_new_tokens):
       pad_token_id=tokenizer.eos_token_id, eos_token_id=tokenizer.eos_token_id,
       device_map="cpu", streamer=streamer
     )
+
   hf_model = HuggingFacePipeline(pipeline=phi2_pipeline)
   qa_chain = get_retrieval_qa_chain(text_file, hf_model)
 
