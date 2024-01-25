@@ -39,6 +39,13 @@ model_id = "microsoft/phi-2"
 tokenizer = AutoTokenizer.from_pretrained(model_id, trust_remote_code=True)
 model = AutoModelForCausalLM.from_pretrained(model_id, torch_dtype=torch.float32, device_map="auto", trust_remote_code=True)
 
+# sentence transformers to be used in vector store
+embeddings = HuggingFaceEmbeddings(
+      model_name="sentence-transformers/multi-qa-MiniLM-L6-cos-v1",
+      model_kwargs={'device': 'cpu'},
+      encode_kwargs={'normalize_embeddings': False}
+  )
+
 # Returns a faiss vector store retriever given a txt file
 def prepare_vector_store_retriever(filename):
   # Load data
@@ -56,11 +63,6 @@ def prepare_vector_store_retriever(filename):
   documents = text_splitter.split_documents(raw_documents)
 
   # Creating a vectorstore
-  embeddings = HuggingFaceEmbeddings(
-      model_name="sentence-transformers/multi-qa-MiniLM-L6-cos-v1",
-      model_kwargs={'device': 'cpu'},
-      encode_kwargs={'normalize_embeddings': False}
-  )
   vectorstore = FAISS.from_documents(documents, embeddings, distance_strategy=DistanceStrategy.COSINE)
 
   return VectorStoreRetriever(vectorstore=vectorstore, search_kwargs={"k": 2})
