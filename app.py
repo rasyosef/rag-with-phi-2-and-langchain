@@ -40,7 +40,7 @@ model = AutoModelForCausalLM.from_pretrained(
 
 # sentence transformers to be used in vector store
 embeddings = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/multi-qa-MiniLM-L6-cos-v1",
+    model_name="sentence-transformers/msmarco-distilbert-base-v4",
     model_kwargs={"device": "cpu"},
     encode_kwargs={"normalize_embeddings": False},
 )
@@ -61,7 +61,7 @@ def prepare_vector_store_retriever(filename):
 
     # Creating a vectorstore
     vectorstore = FAISS.from_documents(
-        documents, embeddings, distance_strategy=DistanceStrategy.COSINE
+        documents, embeddings, distance_strategy=DistanceStrategy.DOT_PRODUCT
     )
 
     return VectorStoreRetriever(vectorstore=vectorstore, search_kwargs={"k": 2})
