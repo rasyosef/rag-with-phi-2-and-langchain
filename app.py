@@ -170,6 +170,8 @@ with gr.Blocks() as demo:
         examples=[
             "Who portrayed J. Robert Oppenheimer in the new Oppenheimer movie?",
             "In the plot of the movie, why did Lewis Strauss resent Robert Oppenheimer?",
+            "How much money did the Oppenheimer movie make at the US and global box office?",
+            "What score did the Oppenheimer movie get on Rotten Tomatoes and Metacritic?",
         ],
         inputs=[ques],
     )
