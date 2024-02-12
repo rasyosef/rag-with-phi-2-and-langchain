@@ -102,6 +102,9 @@ def generate(question, answer, text_file, max_new_tokens):
 
     query = f"{question}"
 
+    if len(tokenizer.tokenize(query)) >= 512:
+        query = "Repeat 'Your question is too long!'"
+
     thread = Thread(target=qa_chain.invoke, kwargs={"input": {"query": query}})
     thread.start()
 
